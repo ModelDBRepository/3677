@@ -1,0 +1,63 @@
+// replacements for some procs in stdrun.hoc
+
+strdef somav, dendv, basalv, tuftv, act, inact
+objref somarawfile, dendrawfile, outfile
+objref somarawvec, dendrawvec, somasimvec, dendsimvec, tuftsimvec
+somarawfile = new File()
+dendrawfile = new File()
+outfile = new File()
+somarawvec = new Vector()
+dendrawvec = new Vector()
+somasimvec = new Vector(1024)
+dendsimvec = new Vector(1024)
+tuftsimvec = new Vector(1024)
+somarawv = 0
+dendrawv = 0
+
+
+proc continuerun() {local rt
+	eventcount=0
+	eventslow=1
+	stoprun = 0
+	if (using_cvode_) {
+		cvode.event($1)
+	}
+	while(t < $1 && stoprun == 0) {
+		step()
+		sum_error(somaticv(),dendriticv())
+		findmax()
+		findss()
+	/*	write_data() */
+		rt = stopsw()
+		if (rt > realtime) {
+			realtime = rt
+			if (!stdrun_quiet) fastflushPlot()
+			doNotify()
+			if (realtime == 2 && eventcount > 50) {
+				eventslow = int(eventcount/50) + 1
+			}
+			eventcount = 0
+		}else{
+			eventcount = eventcount + 1
+			if ((eventcount%eventslow) == 0) {
+				doEvents()
+			}
+		}
+	}
+	flushPlot()
+	avg_error()
+}
+
+proc newPlotV() {
+	newPlot(0,tstop,$1,$2)
+	graphItem.save_name("graphList[0].")
+	graphList[0].append(graphItem)
+	graphItem.addexpr(somav)
+	graphItem.addexpr(dendv,2,1)
+/*	graphItem.addexpr(basalv,3,1) */
+/*	graphItem.addexpr(tuftv,4,1) */
+	if (syn<1) {
+		graphItem.addexpr("somarawv",3,1)
+		graphItem.addexpr("dendrawv",4,1)
+	}
+}

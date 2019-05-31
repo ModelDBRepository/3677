@@ -1,0 +1,395 @@
+double vrest[1091]
+double vss[1091]
+double peakv[1091], synint[1091]
+
+proc init_params() {
+	strdef somareadfile, dendreadfile
+/*	somareadfile="ri18scs.asc" */
+/*	dendreadfile="ri18dcs.asc" */
+	somav="dend1[21].v(0.5)"     /* somatic recording site */
+	dendv="dend1[183].v(0.01)"   /* dendritic recording site */
+	if (syn>0) {
+		dendv="dend1[184].v(0.5)" /* dendritic recording site for synaptics */
+	}
+	tuftv="dend1[235].v(0.5)"   /* dendritic recording site */
+	basalv="dend1[866].v(0.5)"  /* distal end of basal beginning at 808 */
+	/* initialize user-defined membrane parameters */
+	celsius = 35
+	global_ra=151   /* internal resistivity in ohm-cm */
+	Cm=1.0          /* specific membrane capacitance in uF/cm^2 */
+	Rm=23375        /* specific membrane resistivity in ohm-cm^2 */
+ 	Vleak=-76		/* leak reversal */
+	Vrest=-76		/* resting potential */
+	qblock=0		/* fraction of q current blocked by Cs */
+	nablock=1       /* fraction of na current blocked by TTX */
+	kblock=1        /* fraction of k current blocked */
+	spinescale=2.0  /* scale total area to account for spines */
+	areascale=1.30  /* scale total area by an additional factor */
+	target=53.6     /* input resistance target in CsCl */
+	/* attenuation is 0.485 in CsCl */
+  /* init_pass2 (nonuniform Rm with no sag) */
+	if (ipass>1) {
+		global_ra=68.022
+		rmsoma = 34963
+		rmend = 5357
+		rmhalfdis=405.84
+		rmsteep=50
+		Cm=1.5431
+		areascale=1.0
+		/* determined from fits of five free parameters with rmsteep=50 fixed */
+	}
+  /* init_pass1 with initq1 (uniform Rm and uniform gh) */
+	if ((initq==1) && (qblock<1)) {
+		print "uniform Rm and uniform gh"
+		maxq=0.000072
+		zeta_q=7.2
+		a0_q=0.00034
+		b0_q=a0_q
+		Vleak=-76
+	}
+  /* init_pass2 with initq1 (nonuniform Rm and uniform gh) */
+	if ((initq>1) && (ipass>1) && (qblock<1)) {
+		print "nonuniform Rm and uniform gh"
+		maxq=0.0000282
+		Vleak=-76
+		zeta_qq=7.2
+		erevq_qq=-43
+		vhalf_qq=-81
+		a0_qq=0.00034  	/* this value gives taus similar to */
+		b0_qq=a0_qq	/* Solmon & Nerbonne, but are too slow, */
+				/* hence the very large qten */
+		/* qten_qq=33 */
+		qten_qq=23.5
+	}
+  /* init_pass2 with initq2 (nonuniform Rm and nonuniform gh */
+ 	if ((initq>0) && (ipass>1) && (qblock<1)) {
+		print "nonuniform Rm and gh"
+		qscale=0.0010001
+		maxq=0.01996
+		qhalfdis=438.52
+		qsteep=50
+		Vleak=-76
+		zeta_qq=7.2
+		erevq_qq=-43
+		vhalf_qq=-81 /* was -81 a la Solmon and Nerbonne */
+		a0_qq=0.00034  	/* this value gives taus similar to */
+		b0_qq=a0_qq	/* Solmon & Nerbonne, but are too slow, */
+				/* hence the very large qten */
+		qten_qq=3.7963 /* was 7.263 for Vleak=-82 */
+	}
+}
+
+proc init() { local dtsav
+	finitialize(Vrest)
+	fcurrent()
+	finitialize()
+	for i=0,1090 {
+		vrest[i]=dend1[i].v(0.5)
+	}
+	ss_save()
+	if (writeout>0) {
+		somasimvec.record(&dend1[21].v(0.5))
+		dendsimvec.record(&dend1[183].v(0.01))
+		if (syn==1) {
+			dendsimvec.record(&dend1[184].v(0.5))
+			tuftsimvec.record(&dend1[235].v(0.5))
+		}
+		if (syn>1) {
+			dendsimvec.record(&dend1[177].v(0.5))
+			tuftsimvec.record(&dend1[235].v(0.5))
+		}
+	}
+	if (qblock<1) {
+		dtsav=dt
+		dt=10
+		t=1e6
+		printf("initializing")
+		for i=0,40 {
+			printf(".")
+			fadvance()
+		}
+		printf("\n")
+		dt=dtsav
+		finitialize()
+		for i=0,1090 {
+			vrest[i]=dend1[i].v(0.5)
+		}
+		ss_save()
+	}
+	t=0
+}
+
+proc advance() {
+	fadvance()
+	ss_subtract()
+}
+
+proc ss_save() {
+	Vrestsoma=somaticv()
+	Vrestdend=dendriticv()
+	ss_subtract()
+	for i=0,1090 {
+		vss[i]=dend1[i].v(0.5)
+	}
+}
+
+proc ss_subtract() {
+	vsoma=somaticv()-Vrestsoma
+	vdend=dendriticv()-Vrestdend
+}
+
+proc insert_pass() {
+	print "Inserting passive membrane properties\n"
+	forall {insert pas Ra=global_ra e_pas=Vleak}
+}
+
+proc insertq() {
+	printf("Inserting sag conductance in all segments: %d pecent blocked\n",qblock*100)
+	forall { insert qq gqbar_qq=0 }
+}
+
+proc init_pass1() {
+	Cm=$1
+	dendscale=spinescale*areascale
+	somascale=areascale*1.0
+	print "Initializing uniform passive membrane properties\n"
+	forall { g_pas=1/(Rm/dendscale) cm=Cm*dendscale Ra=global_ra e_pas=Vleak}
+	/* the following segments are NOT scaled for spines */
+	/* these include the axon, soma, 1st 100 um of apical trunk, */
+	/*  and the 1st 20 um of basals */
+	/* the reconstructed axon */
+	axon {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	soma {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	for i=0,13 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	/* the real soma */
+	for i=14,27 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	/* the 1st 100 um of the apical trunk */
+	for i=28,32 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=43,47 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=71,72 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	/* the 1st 20 um of the basals */
+	for i=777,778 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=808,810 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=923,924 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=957,959 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=1006,1007 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=1055,1058 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=1059,1060 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+	for i=1067,1069 {
+		dend1[i] {g_pas=1/(Rm/somascale) cm=Cm*somascale }
+	}
+}
+
+proc init_pass2() {
+	Cm=$1
+	dendscale=spinescale*areascale
+	somascale=areascale*1.0
+	/* sigmoidal decrease in Rm from rmsoma to rmend */
+	/* rmsoma and rmend, and rmhalfdis and rmsteep are set in init_params */
+	/* differs from nurm3 in that function applies to basal dendrites also */
+	maxdis=1113
+	dis=0
+	access dend1[21]
+	area(0.5)
+	distance()
+	print "Initializing nonuniform passive membrane properties with nurm4\n"
+	forall {g_pas=1/(rmsoma/dendscale) cm=Cm*dendscale Ra=global_ra e_pas=Vleak}
+	for i=0,1090 {
+		access dend1[i]
+		dis=distance(0)
+		rmpoint=rmend+(rmsoma-rmend)/(1+exp((dis-rmhalfdis)/rmsteep))
+		dend1[i] {g_pas=1/(rmpoint/dendscale) }
+	}
+	/* the following segments are NOT scaled for spines */
+	/* these include the axon, soma, 1st 100 um of apical trunk, */
+	/*  and the 1st 20 um of basals */
+	/* the reconstructed axon */
+	axon { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	soma { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	for i=0,13 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	/* the real soma */
+	for i=14,27 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	/* the 1st 100 um of the apical trunk */
+	for i=28,32 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=43,47 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=71,72 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	/* the 1st 20 um of the basals */
+	for i=777,778 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=808,810 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=923,924 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=957,959 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=1006,1007 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=1055,1058 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=1059,1060 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+	for i=1067,1069 {
+		dend1[i] { g_pas=g_pas*somascale/dendscale cm=Cm*somascale/dendscale }
+	}
+}
+
+proc initq1() {
+	qten_qq=$1*10
+	/* uniform sag conductance in all compartments */
+	forall { gqbar_qq=maxq*dendscale*(1-qblock) }
+	printf("Initializing uniform sag conductance in all segments\n")
+	/* the reconstructed axon */
+	axon { gqbar_qq=0}
+	soma { gqbar_qq=maxq*somascale*(1-qblock)}
+	for i=0,13 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock) }
+	}
+	/* the real soma */
+	for i=14,27 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	/* the 1st 100 um of the apical trunk */
+	for i=28,32 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=43,47 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=71,72 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	/* the 1st 20 um of the basals */
+	for i=777,778 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=808,810 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=923,924 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=957,959 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=1006,1007 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=1055,1058 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=1059,1060 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+	for i=1067,1069 {
+		dend1[i] { gqbar_qq=maxq*somascale*(1-qblock)}
+	}
+}
+
+proc initq2() {
+	qten_qq=$1
+	/* scale up sag conductance as a sigmoidal function of distance from the soma */
+	/* q=minq+(maxq-minq)/(1+exp((-dis-qhalfdis)/qsteep)) */
+	/* minq=qscale*maxq */
+	/* set maxq, qscale, and qhalfdis and qsteep in init_params */
+	maxdis=1113
+	minq=qscale*maxq
+	dis=0
+	access dend1[21]
+	area(0.5)
+	distance()
+	printf("Initializing sag conductance in all segments with initq2\n")
+	forall { gqbar_qq=0 }
+	for i=0,1090 {
+		access dend1[i]
+		dis=distance(0)
+		gqbar_qq=minq+(maxq-minq)/(1+exp(-(dis-qhalfdis)/qsteep))
+		gqbar_qq=gqbar_qq*dendscale*(1-qblock)
+	}
+	/* the reconstructed axon */
+	axon { gqbar_qq=0 }
+	soma { gqbar_qq=0 }
+	for i=0,13 {
+		dend1[i] { gqbar_qq=0 }
+	}
+	/* the real soma */
+	for i=14,27 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	/* the 1st 100 um of the apical trunk */
+	for i=28,32 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=43,47 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=71,72 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	/* the 1st 20 um of the basals */
+	for i=777,778 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=808,810 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=923,924 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=957,959 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=1006,1007 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=1055,1058 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=1059,1060 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+	for i=1067,1069 {
+		dend1[i] { gqbar_qq=gqbar_qq*somascale/dendscale }
+	}
+}
+

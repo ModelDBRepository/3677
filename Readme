@@ -1,0 +1,7 @@
+Stuart, G. and Spruston, N. Determinants of voltage attenuation in
+neocortical pyramidal neuron dendrites. Journal of Neuroscience
+18:3501-3510, 1998.
+
+The mosinit.hoc file calls the files that reproduce fig 5C of this paper.
+Cells A, B, and C of Fig 1 are in subdirectories Ri18, Ri21, and Ri22
+respectively.

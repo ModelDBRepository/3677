@@ -1,0 +1,48 @@
+/* help ?0 */
+
+create soma
+soma delete_section()
+strdef demolabel
+demolabel = "Ri21: Choose one of the actions       "
+/* load_proc("nrnmainmenu") */
+xopen("$(NEURONHOME):lib:hoc:noload.hoc")
+xopen("mystdrun.hoc")
+nrnmainmenu()
+
+load_template("Electrode")
+load_template("MenuExplore")
+load_template("PointProcessLocator")
+
+proc destroy(){} // redefined by each subdemo
+
+proc ri21_init() {
+/*   xopen("ri21para.hoc") */
+  xopen("ri21geo2.hoc")
+  xopen("ri21init.hoc")
+/*  xopen("functions.hoc") */
+  print "To quit the program type ^D (control d) in this window"
+}
+
+proc section_params() {
+  destroy()
+  objectvar e, stim, menu_explore, pplocator, s
+  objectvar save_window_[1], rvp_[1], scene_vector_[1], ocbox_[1]
+  objectvar ocbox_list_[1], scene_list_[1], scene_[1]
+  doEvents()
+  xopen("$(NEURONHOME)/lib/hoc/stdrun.hoc")
+  xopen("sections.ses")
+  finitialize()
+}
+
+proc step_at_soma() {
+  xopen("functions.hoc")
+  xopen("step.hoc")
+}
+
+proc do_ri_loop() {
+  xopen("ri_loop.hoc")
+}
+
+ri21_init()
+
+xopen("ri21.ses")

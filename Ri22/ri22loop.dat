@@ -1,0 +1,14 @@
+ri22geo5
+Surface area of dendrites scaled for spines (spinescale)
+Surface area of all compartments scaled by an additional
+ factor (areascale) to match input resistance
+Ri     spinescale     areascale      long          long pulse    short vdend    short        short pulse
+                                     atten.        ms error      peak time      atten.       vdend ms error
+---    ---------      ---------      ---------     -----------   -----------    ---------    -------------
+170     2.000000      0.912913       0.555678      0.046712      7.340000      0.526286      0.113736
+172     2.000000      0.916041       0.552332      0.046801      7.440000      0.526169      0.115852
+174     2.000000      0.919164       0.549015      0.047137      7.440000      0.521972      0.118160
+175     2.000000      0.920702       0.547372      0.047391      7.440000      0.519893      0.119376
+176     2.000000      0.922253       0.545734      0.047703      7.540000      0.521888      0.120635
+178     2.000000      0.925381       0.542470      0.048492      7.540000      0.517764      0.123277
+180     2.000000      0.928477       0.539242      0.049476      7.640000      0.517698      0.126053

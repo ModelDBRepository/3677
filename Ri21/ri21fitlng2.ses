@@ -1,0 +1,163 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[4]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+{pwman_place(-1,-17)}
+{
+xpanel("NEURON Main Panel", 0)
+realtime = 57
+xvalue("Real Time","realtime", 0,"", 0, 1 )
+celsius = 35
+xvalue("celsius","celsius", 1,"", 0, 1 )
+global_ra = 130.85
+xvalue("Axial Resistivity","global_ra", 1,"set_ra()", 1, 1 )
+xbutton("RunControl","nrncontrolmenu()")
+xmenu("New Graph")
+xbutton("Voltage axis","newPlotV()")
+xbutton("Current axis","newPlotI()")
+xbutton("State axis","newPlotS()")
+xbutton("Shape plot","newshapeplot()")
+xbutton("Vector movie","newvectorplot()")
+xbutton("Phase Plane","newphaseplane()")
+xbutton("Grapher","load_proc(\"makegrapher\") makegrapher()")
+xmenu()
+xmenu("Point Processes")
+xmenu("Managers")
+xbutton("Point Manager","load_template(\"PointProcessManager\") makeppm()")
+xbutton("Electrode","load_proc(\"makeelectrode\") makeelectrode()")
+xmenu()
+xmenu("Viewers")
+xmenu("PointProcesses")
+xbutton("IClamp","makePointBrowser(\"IClamp\")")
+xbutton("AlphaSynapse","makePointBrowser(\"AlphaSynapse\")")
+xbutton("SEClamp","makePointBrowser(\"SEClamp\")")
+xbutton("VClamp","makePointBrowser(\"VClamp\")")
+xbutton("APCount","makePointBrowser(\"APCount\")")
+xmenu()
+xmenu()
+xmenu()
+xmenu("Distributed Mechanisms")
+xmenu("Managers")
+xbutton("Inserter","load_template(\"Inserter\") makeinserter()")
+xbutton("Homogeneous Spec","load_proc(\"makeshowmechanism\") makeshowmechanism()")
+xmenu()
+xmenu("Viewers")
+xbutton("Shape Name","load_template(\"MenuExplore\") makeMenuExplore()")
+xbutton("Name Values","nrnallsectionmenu()")
+xmenu("Mechanisms (Globals)")
+xbutton("na_ion","nrnglobalmechmenu(\"na_ion\")")
+xbutton("k_ion","nrnglobalmechmenu(\"k_ion\")")
+xbutton("hh","nrnglobalmechmenu(\"hh\")")
+xbutton("q","nrnglobalmechmenu(\"q\")")
+xbutton("nakhh","nrnglobalmechmenu(\"nakhh\")")
+xmenu()
+xmenu()
+xmenu()
+xmenu("Miscellaneous")
+xbutton("Family","load_template(\"Family\") makeFamily()")
+xbutton("Parameterized Function","load_template(\"FunctionFitter\") makefitter()")
+xbutton("Run Fitter","load_template(\"RunFitter\") makerunfitter()")
+xmenu()
+xpanel(-1,-17)
+}
+{
+xpanel("RunControl", 0)
+v_init = -75
+xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+xbutton("Init & Run","run()")
+xbutton("Stop","stoprun=1")
+runStopAt = 5
+xvalue("Continue til","runStopAt", 1,"{continuerun(runStopAt) stoprun=1}", 1, 1 )
+runStopIn = 1
+xvalue("Continue for","runStopIn", 1,"{continuerun(t + runStopIn) stoprun=1}", 1, 1 )
+xbutton("Single Step","steprun()")
+t = 0
+xvalue("t","t", 2 )
+tstop = 400
+xvalue("Tstop","tstop", 1,"tstop_changed()", 0, 1 )
+dt = 0.5045
+xvalue("dt","dt", 1,"setdt()", 0, 1 )
+steps_per_ms = 1.9822
+xvalue("Points plotted/ms","steps_per_ms", 1,"setdt()", 0, 1 )
+xpanel(-1,-17)
+}
+{
+load_template("RunFitter")}
+{
+ocbox_=new RunFitter()
+runfit_master = ocbox_
+}
+{object_push(ocbox_)}
+{
+spec_fit_var("dend1[13].v(0.5)")
+spec_parms("Rm=10000*$1", 2.024, 1, 10, 1)
+tolerance = 1e-05
+spec_parms("Cm=$1", 1.1977, 0.5, 2, 1)
+tolerance = 1e-05
+spec_parms("init_pass($1)", 1.3085, 0.5, 4, 1)
+tolerance = 1e-05
+init_weights(6)
+quiet_ = 0
+normweight = 1
+w_boundary.x[0] = 0
+w_weight.x[0] = 1
+w_boundary.x[1] = 50.1982
+w_weight.x[1] = 0
+w_boundary.x[2] = 179.856
+w_weight.x[2] = 1
+w_boundary.x[3] = 252
+w_weight.x[3] = 0.5
+w_boundary.x[4] = 399.063
+w_weight.x[4] = 1
+w_boundary.x[5] = 399.063
+w_weight.x[5] = 0
+w_boundary.x[6] = 399.063
+w_weight.x[6] = 1
+build_deck()
+read_data1(":slongcs.dat")}
+{object_pop()}
+{
+{save_window_=ocbox_.g
+ocbox_.g = save_window_
+save_window_.save_name("ocbox_.g")
+}
+ocbox_ = ocbox_.vbox
+ocbox_.map("C:NRNBINNEURON.EXE", -1, -17, 504, 456)}
+objref ocbox_
+{
+load_template("RunFitter")}
+{
+ocbox_=new RunFitter(1)
+runfit_master.slaves_.append(ocbox_)
+ocbox_.set_master(runfit_master)
+}
+{object_push(ocbox_)}
+{
+spec_fit_var("dend1[232].v(0.99)")
+init_weights(6)
+normweight = 1
+w_boundary.x[0] = 0
+w_weight.x[0] = 1
+w_boundary.x[1] = 50.1982
+w_weight.x[1] = 0
+w_boundary.x[2] = 179.856
+w_weight.x[2] = 1
+w_boundary.x[3] = 252
+w_weight.x[3] = 0.5
+w_boundary.x[4] = 399.063
+w_weight.x[4] = 1
+w_boundary.x[5] = 399.063
+w_weight.x[5] = 2
+w_boundary.x[6] = 399.063
+w_weight.x[6] = 1
+read_data1(":dlongcs.dat")}
+{object_pop()}
+{
+{save_window_=ocbox_.g
+ocbox_.g = save_window_
+save_window_.save_name("ocbox_.g")
+}
+ocbox_ = ocbox_.vbox
+ocbox_.map("C:NRNBINNEURON.EXE", -1, -17, 455, 317)}
+objref ocbox_
+objectvar scene_vector_[1]

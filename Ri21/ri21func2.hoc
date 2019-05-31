@@ -1,0 +1,213 @@
+/* access dend1[13]  -- somatic recording site at 0.5    */
+/* access dend1[232] -- dendritic recording site at 0.99 */
+
+strdef somaoutname, dendoutname
+somaoutname = "soma.out"
+dendoutname = "dend.out"
+
+objectvar elecstim[2]
+access dend1[13]
+elecstim[0] = new IClamp(0.5)
+elecstim[1] = new IClamp(0.5)
+
+func somaticv() {
+	return dend1[13].v(0.5)
+}
+
+func dendriticv() {
+	return dend1[232].v(0.99)
+}
+
+proc read_expt_data() {
+	if (long>0) {
+	  if (qblock<1) {
+		somareadfile="ri21scon.asc"
+		dendreadfile="ri21dcon.asc"
+	  }
+	  if (qblock>=1) {
+		somareadfile="ri21scs.asc"
+		dendreadfile="ri21dcs.asc"
+	  }
+	}
+	if (short>0) {
+		somareadfile="ri21scs2.asc"
+		dendreadfile="ri21dcs2.asc"
+	}
+	vecdt = 0.126
+	vect = 400
+	veclength = int(vect/vecdt)
+	print "Reading real somatic data for fit..."
+	somarawfile.ropen(somareadfile)
+	somarawvec.scanf(somarawfile,veclength,2,2)
+	somarawfile.close()
+	print "Reading real dendritic data for fit..."
+	dendrawfile.ropen(dendreadfile)
+	dendrawvec.scanf(dendrawfile,veclength,2,2)
+	dendrawfile.close()
+	print "Done\n"
+}
+
+proc somastep_cc() {
+  dend1[13] elecstim.loc(0.5)
+  elecstim.del=$2
+  elecstim.dur=$3
+  elecstim.amp=$1
+  elecstim.i=0
+  tmax=$4
+  dt=$5
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+  run()
+  rn=abs(ssvsoma/elecstim.amp)
+}
+
+proc somastep_cc2() {
+  dend1[13] elecstim.loc(0.5)
+  elecstim.del=$2
+  elecstim.dur=$3
+  elecstim.amp=$1
+  elecstim.i=0
+  tmax=$4
+  dt=$5
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+/*  run() */
+/*  rn=abs(ssvsoma/elecstim.amp) */
+}
+
+proc doublestep_cc() {
+  dend1[13] elecstim[0].loc(0.5)
+  elecstim[0].del=$2
+  elecstim[0].dur=$3
+  elecstim[0].amp=$1
+  elecstim[0].i=0
+  dend1[13] elecstim[1].loc(0.5)
+  elecstim[1].del=$5
+  elecstim[1].dur=$6
+  elecstim[1].amp=$4
+  elecstim[1].i=0
+  tmax=$7
+  dt=$8
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+}
+
+proc stabilize_cc() {
+  fstim(0)
+  elecstim.amp=0
+  otstop=tstop
+  tstop=$1
+  dt=$2
+  steps_per_ms=1/dt
+  run()
+  tstop=otstop
+}
+
+proc findsf() {
+  target=$1
+  adjust=(rn-target)/target
+  oldareascale=areascale
+  areascale=areascale+(adjust*areascale)
+  printf("rn = %f, old areascale = %f, new areascale = %f\n",rn, oldareascale, areascale)
+}
+
+proc findmax() {
+    if (abs(dend1[13].v(0.5)-Vrestsoma)>maxvsoma) {
+	maxvsoma=abs(dend1[13].v(0.5)-Vrestsoma)
+    }
+    if (abs(dend1[232].v(0.99)-Vrestdend)>maxvdend) {
+	maxvdend=abs(dend1[232].v(0.99)-Vrestdend)
+    }
+}
+
+proc findss() {
+    if (t<3*dt) {
+	ssvsoma=0
+	ssvdend=0
+	ssflag=0
+	ndt=0.1*duration/dt
+	nt=0
+	duration=elecstim.dur
+	delay=elecstim.del
+    }
+    if ((t>delay+duration-ndt*dt) && (t<delay+duration)) {
+	ssvsoma=ssvsoma+abs(dend1[13].v(0.5)-Vrestsoma)
+	ssvdend=ssvdend+abs(dend1[232].v(0.99)-Vrestdend)
+	nt=nt+1
+    }
+    if ((t>delay+duration) && (ssflag<1)) {
+	if (nt>0) {
+	  ssvsoma=ssvsoma/nt
+	  ssvdend=ssvdend/nt
+	}
+	ssflag=1
+   }
+}
+
+proc dendtau_cc() {
+  integral1=0
+  integral2=0
+  access dend1[232]
+/*  objectvar waveform */
+/*  waveform = new tau2(0) */
+/*  tau2.loc(0) */
+  /* tau2.loc(0,$1) /* $1 defines location between 0 and 1 synapse */
+/*  {tau2.imax=$2 tau2.tau0=$3 tau2.tau1=$4 tau2.onset=$5 } */
+  delay=$5
+  tmax=$6
+  dt=$7
+  t=0
+  n=0
+  maxvsoma=0
+  maxvdend=0
+  while (t<=tmax) {
+    if (abs(soma.v-Vrestsoma)>maxvsoma) maxvsoma=abs(soma.v-Vrestsoma)
+    if (abs(dend1[232].v(0.99)-Vrestdend)>maxvdend) maxvdend=abs(dend1[232].v(0.99)-Vrestdend)
+    integral1=integral1+((soma.v-Vrestsoma)*dt)
+    integral2=integral2+((dend1[232].v(0.99)-Vrestdend)*dt)
+    setcolor(1)
+    plot(0,t,soma.v)
+    setcolor(2)
+    plot(0,t,dend1[232].v(0.99))
+    setcolor(3)
+    plot(0,t,(i_tau2*10)-20)
+/*    save[n]=soma.v */
+    n=n+1
+/*    write_psp_asc(soma.v) */
+    fadvance(1)
+  }
+/*  halfwidth() */
+}
+
+proc sum_error() {
+	lserrsoma=lserrsoma+($1-somarawv)^2
+	lserrdend=lserrdend+($2-dendrawv)^2
+}
+
+proc avg_error() {
+	lserrsoma=lserrsoma/(tstop/dt)
+	lserrdend=lserrdend/(tstop/dt)
+	lserr=sqrt(lserrsoma)+sqrt(lserrdend)
+}
+
+proc write_data() {
+	printf("Writing output files...\n")
+	outfile.wopen(somaoutname)
+     /*	somasimvec.printf(outfile,"%6.3f\n") */
+	somasimvec.vwrite(outfile)
+	outfile.close()
+	outfile.wopen(dendoutname)
+     /*	dendsimvec.printf(outfile,"%6.3f\n") */
+	dendsimvec.vwrite(outfile)
+	outfile.close()
+}
+

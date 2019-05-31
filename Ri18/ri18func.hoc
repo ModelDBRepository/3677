@@ -1,0 +1,404 @@
+/* access dend1[21]  -- somatic recording site at 0.5    */
+/* access dend1[183] -- dendritic recording site at 0.01 */
+
+strdef somaoutname, dendoutname, tuftoutname
+somaoutname = "soma.out"
+dendoutname = "dend.out"
+tuftoutname = "tuft.out"
+
+objectvar elecstim[2]
+access dend1[21]
+elecstim[0] = new IClamp(0.5)
+elecstim[1] = new IClamp(0.5)
+
+objectvar synapse[5]
+for i=0,4 {
+  synapse[i] = new synampa(0.5)
+}
+
+func somaticv() {
+	return dend1[21].v(0.5)
+}
+
+func dendriticv() {
+	if (syn<1) {
+		return dend1[183].v(0.01)
+	}
+	if (syn>0.5) {
+		return dend1[177].v(0.5) /* for synaptics measured at 403 um */
+	}
+}
+
+proc read_expt_data() {
+	if (long>0) {
+	  if (qblock<1) {
+		somareadfile="ri18scon.asc"
+		dendreadfile="ri18dcon.asc"
+	  }
+	  if (qblock>=1) {
+		somareadfile="ri18scs.asc"
+		dendreadfile="ri18dcs.asc"
+	  }
+	}
+	if (short>0) {
+		somareadfile="ri18scs2.asc"
+		dendreadfile="ri18dcs2.asc"
+	}
+	vecdt = 0.126
+	vect = 400
+	veclength = int(vect/vecdt)
+	print "Reading real somatic data for fit..."
+	somarawfile.ropen(somareadfile)
+	somarawvec.scanf(somarawfile,veclength,2,2)
+	somarawfile.close()
+	print "Reading real dendritic data for fit..."
+	dendrawfile.ropen(dendreadfile)
+	dendrawvec.scanf(dendrawfile,veclength,2,2)
+	dendrawfile.close()
+	print "Done\n"
+}
+
+proc somastep_cc() {
+  dend1[21] elecstim.loc(0.5)
+  elecstim.del=$2
+  elecstim.dur=$3
+  elecstim.amp=$1
+  elecstim.i=0
+  tmax=$4
+  dt=$5
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+  peakvdendt=0
+  peakvdend=0
+  peakvsoma=0
+  run()
+  rn=abs(ssvsoma/elecstim.amp)
+}
+
+proc somastep_cc2() {
+  dend1[21] elecstim.loc(0.5)
+  elecstim.del=$2
+  elecstim.dur=$3
+  elecstim.amp=$1
+  elecstim.i=0
+  tmax=$4
+  dt=$5
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+/*  run() */
+/*  rn=abs(ssvsoma/elecstim.amp) */
+}
+
+proc doublestep_cc() {
+  dend1[21] elecstim[0].loc(0.5)
+  elecstim[0].del=$2
+  elecstim[0].dur=$3
+  elecstim[0].amp=$1
+  elecstim[0].i=0
+  dend1[21] elecstim[1].loc(0.5)
+  elecstim[1].del=$5
+  elecstim[1].dur=$6
+  elecstim[1].amp=$4
+  elecstim[1].i=0
+  tmax=$7
+  dt=$8
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+}
+
+proc dendstep_cc() {
+  dend1[183] elecstim.loc(0.01)
+  elecstim.del=$2
+  elecstim.dur=$3
+  elecstim.amp=$1
+  elecstim.i=0
+  tmax=$4
+  dt=$5
+  steps_per_ms=1/dt
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+  run()
+  rn=abs(ssvsoma/elecstim.amp)
+}
+
+proc stabilize_cc() {
+  fstim(0)
+  elecstim.amp=0
+  otstop=tstop
+  tstop=$1
+  dt=$2
+  steps_per_ms=1/dt
+  run()
+  tstop=otstop
+}
+
+proc findsf() {
+  target=$1
+  adjust=(rn-target)/target
+  oldareascale=areascale
+  areascale=areascale+(adjust*areascale)
+  printf("rn = %f, old areascale = %f, new areascale = %f\n",rn, oldareascale, areascale)
+}
+
+proc findmax() {
+    if (abs(dend1[21].v(0.5)-Vrestsoma)>maxvsoma) {
+		maxvsoma=abs(dend1[21].v(0.5)-Vrestsoma)
+    }
+    if (abs(dendriticv()-Vrestdend)>maxvdend) {
+		maxvdend=abs(dendriticv()-Vrestdend)
+		if (short>0) {
+			peakvdendt=t-delay
+			peakvsoma=abs(dend1[21].v(0.5)-Vrestsoma)
+			peakvdend=abs(dendriticv()-Vrestdend)
+		}
+    }
+    for i=0,1090 {
+    	if (dend1[i].v(0.5)-vrest[i]>peakv[i]) {
+			peakv[i]=dend1[i].v(0.5)-vrest[i]
+    	}
+    	if (dend1[i].v(0.5)-vrest[i]>0) {
+			synint[i]+=(dend1[i].v(0.5)-vrest[i])*dt
+    	}
+	}
+}
+
+proc findss() {
+    if (t<3*dt) {
+		ssvsoma=0
+		ssvdend=0
+		ssflag=0
+		ndt=0.1*duration/dt
+		nt=0
+		duration=elecstim.dur
+		delay=elecstim.del
+    }
+    if ((t>delay+duration-ndt*dt) && (t<delay+duration)) {
+		ssvsoma=ssvsoma+abs(dend1[21].v(0.5)-Vrestsoma)
+		ssvdend=ssvdend+abs(dend1[183].v(0.01)-Vrestdend)
+		nt=nt+1
+    }
+    if ((t>delay+duration) && (ssflag<1)) {
+		if (nt>0) {
+		  ssvsoma=ssvsoma/nt
+		  ssvdend=ssvdend/nt
+		}
+		ssflag=1
+   }
+    if ((t>delay+duration-dt) && (t<=delay+duration)) {
+		if (makeplot>0) {
+			makevdisplot()
+		}
+    }
+}
+
+proc syn_cc() {
+  dend1[183] synapse.loc(0.5)
+  synapse.gmax=$2
+  synapse.tau0=$3
+  synapse.tau1=$4
+  synapse.e=$5
+  synapse.onset=$6
+  delay=$6
+  tmax=$7
+  dt=$8
+  steps_per_ms=1/dt
+  integral1=0
+  integral2=0
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+  run()
+}
+
+proc syn_cc2() {
+/* just distal to major branch */
+/*  dend1[557] synapse[0].loc(0.5) */
+/*  dend1[416] synapse[1].loc(0.5) */
+/*  dend1[200] synapse[2].loc(0.5) */
+/*  dend1[420] synapse[3].loc(0.5) */
+/*  dend1[194] synapse[4].loc(0.5) */
+/* more distal apical tuft input */
+/* record at 596 um using dend1[184](0.5) - just proximal to major branch*/
+if (syn==1) {
+	dend1[235] synapse[0].loc(0.5)
+	dend1[399] synapse[1].loc(0.5)
+	dend1[526] synapse[2].loc(0.5)
+	dend1[619] synapse[3].loc(0.5)
+	dend1[676] synapse[4].loc(0.5)
+}
+/* located 350-450 um from the soma */
+/* record at 403 um using dend1[177](0.5) */
+if (syn>1) {
+ 	dend1[175] synapse[0].loc(0.5)
+	dend1[176] synapse[1].loc(0.5)
+	dend1[177] synapse[2].loc(0.5)
+ 	dend1[178] synapse[3].loc(0.5)
+	dend1[179] synapse[4].loc(0.5)
+}
+  for i=0,4 {
+	synapse[i].gmax=$2
+    synapse[i].tau0=$3
+    synapse[i].tau1=$4
+    synapse[i].e=$5
+    synapse[i].onset=$6
+  }
+  delay=$6
+  tmax=$7
+  dt=$8
+  gmax=$2
+  steps_per_ms=1/dt
+  integral1=0
+  integral2=0
+  for i=0,1090 {
+  	peakv[i]=0
+  }
+  maxvsoma=0
+  maxvdend=0
+  ssvsoma=0
+  ssvdend=0
+  realtime=0
+  startsw()
+  continuerun(tstop)
+}
+
+proc dendtau_cc() {
+  integral1=0
+  integral2=0
+  access dend1[183]
+/*  objectvar waveform */
+/*  waveform = new tau2(0) */
+/*  tau2.loc(0) */
+  /* tau2.loc(0,$1) /* $1 defines location between 0 and 1 synapse */
+/*  {tau2.imax=$2 tau2.tau0=$3 tau2.tau1=$4 tau2.onset=$5 } */
+  delay=$5
+  tmax=$6
+  dt=$7
+  t=0
+  n=0
+  maxvsoma=0
+  maxvdend=0
+  while (t<=tmax) {
+    if (abs(soma.v-Vrest)>maxvsoma) maxvsoma=abs(soma.v-Vrest)
+    if (abs(dend1[183].v(0.01)-Vrest)>maxvdend) maxvdend=abs(dend1[183].v(0.01)-Vrest)
+    integral1=integral1+((soma.v-Vrest)*dt)
+    integral2=integral2+((dend1[183].v(0.01)-Vrest)*dt)
+    setcolor(1)
+    plot(0,t,soma.v)
+    setcolor(2)
+    plot(0,t,dend1[183].v(0.01))
+    setcolor(3)
+    plot(0,t,(i_tau2*10)-20)
+/*    save[n]=soma.v */
+    n=n+1
+/*    write_psp_asc(soma.v) */
+    fadvance(1)
+  }
+/*  halfwidth() */
+}
+
+proc sum_error() {
+	if (short>0) {
+		tstarts=7
+		tstartd=5
+	}
+	if (long>0) {
+		tstarts=50
+		tstartd=50
+	}
+	if (both>0) {
+		tstarts=50
+		tstartd=50
+	}
+	if (t>tstarts) {
+		mserrsoma=mserrsoma+($1-somarawv)^2
+	}
+	if (t>tstartd) {
+		mserrdend=mserrdend+($2-dendrawv)^2
+	}
+}
+
+proc avg_error() {
+	mserrsoma2=mserrsoma/((tstop-tstarts)/dt)
+	mserrdend2=mserrdend/((tstop-tstartd)/dt)
+/*	mserrsoma=sqrt(mserrsoma2) */
+/*	mserrdend=mserrdend2 */
+	mserrsoma=mserrsoma2
+	mserrdend=mserrdend2
+	mserr=(mserrsoma+mserrdend)/2
+}
+
+proc write_data() {
+	printf("Writing output files...\n")
+	outfile.wopen(somaoutname)
+     /*	somasimvec.printf(outfile,"%6.3f\n") */
+	somasimvec.vwrite(outfile)
+	outfile.close()
+	outfile.wopen(dendoutname)
+     /*	dendsimvec.printf(outfile,"%6.3f\n") */
+	dendsimvec.vwrite(outfile)
+	outfile.close()
+	outfile.wopen(tuftoutname)
+     /*	dendsimvec.printf(outfile,"%6.3f\n") */
+	tuftsimvec.vwrite(outfile)
+	outfile.close()
+}
+
+proc write_for_fit() {
+	ropen("ri18scs.dat")
+	wopen("test.dat")
+	fprint("%d\n", fscan())
+	for i=0,3174 {
+	  fprint("%6.3f  %6.3f\n", fscan(), fscan()-76)
+	}
+	wopen()
+	ropen()
+}
+
+proc makevdisplot() {
+  print "making plot"
+  print Vrestsoma, Vrestdend
+	maxdis=1113
+	dis=0
+	access dend1[21]
+	area(0.5)
+	distance()
+	wopen("attenvsdis.dat")
+	for i=0,1090 {
+		access dend1[i]
+		dis=distance(0.5)
+		atten=(v(0.5)-vss[i])/(dend1[21].v(0.5)-Vrestsoma)
+		fprint("%d    %3.2f   %3.2f   %3.2f %3.2f\n",i,dis,diam(0.5),v(0.5),atten)
+	}
+	wopen()
+}
+
+proc synvdisplot() {
+	print "making plot"
+	print Vrestsoma, Vrestdend
+	maxdis=1113
+	dis=0
+	access dend1[21]
+	area(0.5)
+	distance()
+	wopen("synvsdis.dat")
+	fprint("sec.  dis  diam  peakv  synint\n")
+	for i=0,1090 {
+		access dend1[i]
+		dis=distance(0.5)
+		fprint("%d    %3.2f   %3.2f   %3.2f %3.2f\n",i,dis,diam(0.5),peakv[i],synint[i])
+	}
+	wopen()
+}
+

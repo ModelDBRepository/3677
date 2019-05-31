@@ -1,0 +1,37 @@
+proc init_params() {
+	strdef somareadfile, dendreadfile
+	somareadfile="ri18scs.asc" /* "ri18scon.asc" */
+	dendreadfile="ri18dcs.asc" /* "ri18dcon.asc" */
+	somav="dend1[21].v(0.5)"     /* somatic recording site */
+	dendv="dend1[183].v(0.01)"   /* dendritic recording site */
+	basalv="dend1[824].v(0.99)"  /* dendritic recording site */
+	tuftv="dend1[386].v(0.99)"   /* dendritic recording site */
+	/* initialize user-defined membrane parameters */
+	celsius = 35
+	global_ra=150    /* internal resistivity in ohm-cm */
+	     /* global_ra=151  adjusted for 2% sag simulation */
+	     /* global_ra=130  /* adjusted for nu Rm simulation */
+	Cm=1.0           /* specific membrane capacitance in uF/cm^2 */
+	Rm=23375         /* specific membrane resistivity in ohm-cm^2 */
+  	    /* Rm=13714     adjusted for low Rm simulation */
+   	    /* Rm=26750     /* adjusted for sag simulation */
+  	    /* Rm=26750     /* adjusted for nonuniform Rm simulation */
+	Vleak=-67        /* reversal of the leak potential in mV */
+	qblock=0         /* fraction of q current blocked by Cs */
+	nablock=1        /* fraction of na current blocked by TTX */
+	kblock=1         /* fraction of k current blocked */
+	spinescale=2.0   /* scale total area to account for spines */
+	areascale=1.30   /* scale total area by an additional factor */
+	    /* areascale=1.44   adjusted for 2% sag simulation */
+	target=53.6      /* input resistance target in CsCl */
+	    /* target=35.5   adjusted for low Rm simulation */
+	/* parameter changes for low Rm simulation */
+	/* global_ra = 98.5 */
+	/* Rm = 32000 */
+	/* areascale = 1.2946 */
+	rmscale = 1241	/* for nonuniform rm simulations */
+}
+
+init_params()
+
+

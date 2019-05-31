@@ -1,0 +1,85 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[2]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+{
+xpanel("NEURON Main Panel", 0)
+realtime = 0
+xvalue("Real Time","realtime", 0,"", 0, 1 )
+celsius = 6.3
+xvalue("celsius","celsius", 1,"", 0, 1 )
+global_ra = 34.5
+xvalue("forall Ra=","global_ra", 1,"set_ra()", 1, 1 )
+xmenu("New Graph")
+xbutton("Voltage axis","newPlotV()")
+xbutton("Current axis","newPlotI()")
+xbutton("State axis","newPlotS()")
+xbutton("Shape plot","newshapeplot()")
+xbutton("Phase Plane","newphaseplane()")
+xbutton("Grapher","load_proc(\"makegrapher\") makegrapher()")
+xmenu()
+xmenu("Miscellaneous")
+xbutton("Electrode","load_proc(\"makeelectrode\") makeelectrode()")
+xbutton("Homogeneous Spec","load_proc(\"makeshowmechanism\") makeshowmechanism()")
+xmenu()
+xbutton("RunControl","nrncontrolmenu()")
+xbutton("sections","nrnallsectionmenu()")
+xmenu("Point Processes")
+xbutton("PulseStim","nrnallpointmenu(1)")
+xbutton("AlphaSynapse","nrnallpointmenu(2)")
+xbutton("VClamp","nrnallpointmenu(3)")
+xbutton("APCount","nrnallpointmenu(4)")
+xmenu()
+xmenu("Mechanisms (Globals)")
+xbutton("morphology","nrnglobalmechmenu(\"morphology\")")
+xbutton("capacitance","nrnglobalmechmenu(\"capacitance\")")
+xbutton("pas","nrnglobalmechmenu(\"pas\")")
+xbutton("extracellular","nrnglobalmechmenu(\"extracellular\")")
+xbutton("fastpas","nrnglobalmechmenu(\"fastpas\")")
+xbutton("na_ion","nrnglobalmechmenu(\"na_ion\")")
+xbutton("k_ion","nrnglobalmechmenu(\"k_ion\")")
+xbutton("hh","nrnglobalmechmenu(\"hh\")")
+xbutton("Xmech","nrnglobalmechmenu(\"Xmech\")")
+xbutton("ca_ion","nrnglobalmechmenu(\"ca_ion\")")
+xbutton("cadifpmp","nrnglobalmechmenu(\"cadifpmp\")")
+xbutton("cachan1","nrnglobalmechmenu(\"cachan1\")")
+xbutton("cachan","nrnglobalmechmenu(\"cachan\")")
+xbutton("capump","nrnglobalmechmenu(\"capump\")")
+xbutton("kchan","nrnglobalmechmenu(\"kchan\")")
+xbutton("mcox","nrnglobalmechmenu(\"mcox\")")
+xbutton("nacax","nrnglobalmechmenu(\"nacax\")")
+xbutton("nachan","nrnglobalmechmenu(\"nachan\")")
+xbutton("trel","nrnglobalmechmenu(\"trel\")")
+xmenu()
+xpanel(105.4,620.2)
+}
+{
+xpanel("RunControl", 0)
+t = 0
+xvalue("t","t", 2 )
+dt = 0.025
+xvalue("dt","dt", 1,"setdt()", 0, 1 )
+xbutton("Init & Run","run()")
+v_init = -65
+xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+xbutton("Stop","stoprun=1")
+runStopAt = 5
+xvalue("Continue til","runStopAt", 1,"{continuerun(runStopAt) stoprun=1}", 1, 1 )
+runStopIn = 1
+xvalue("Continue for","runStopIn", 1,"{continuerun(t + runStopIn) stoprun=1}", 1, 1 )
+xbutton("Single Step","steprun()")
+tstop = 5
+xvalue("Tstop","tstop", 1,"tstop_changed()", 0, 1 )
+steps_per_ms = 40
+xvalue("Plots/ms","steps_per_ms", 1,"setdt()", 0, 1 )
+xpanel(340.6,433)
+}
+{
+xpanel("Ri18 Control Panel", 0)
+xvarlabel(demolabel)
+xradiobutton("Ri18 Section parameters","section_params()")
+xradiobutton("Current step at soma","step_at_soma()")
+xradiobutton("Execute Ri loop","do_ri_loop()")
+xpanel(335.8,754.6)
+}
+objectvar scene_vector_[1]

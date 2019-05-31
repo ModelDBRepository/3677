@@ -1,0 +1,88 @@
+/* access dend1[7]   -- somatic recording site at 0.5    */
+/* access dend1[134] -- dendritic recording site at 0.01 */
+
+graphicson = 1    /* 1 graphics on, -1 graphics off */
+lserroron = -1    /* compare simulation to real data if > 0 */
+writeout = 1      /* equals 1 if output should be written to a file */
+
+xopen("mystdrun.hoc")
+xopen("ri22geo5.hoc")
+xopen("ri22init.hoc")
+xopen("ri22func.hoc")
+nrnmainmenu()
+tstop=100
+init_params()
+lowv=-81
+highv=-78
+long=1
+short=0
+if (long>0) {
+	tstop=400
+	somareadfile="ri22scs.asc"
+	dendreadfile="ri22dcs.asc"
+}
+if (short>0) {
+	tstop=100
+	somareadfile="ri22scs2.asc"
+	dendreadfile="ri22dcs2.asc"
+}
+read_expt_data()
+init_pass()		/* initialize passive membrane */
+if (qblock<1) {
+  initq1()		/* initialize q conductance */
+}		
+/* initnakhh()	*/	/* initialize active HH Na/K conductances */
+if (graphicson>0) {
+  newPlotV(lowv,highv)
+}
+init()			/* initialize v and active states */
+Vrestsoma=Vleak
+Vrestdend=Vleak
+if (qblock<1) {
+  print "stabilizing"
+  stabilize_cc(600,5)
+}
+somarawvec.play(&somarawv,vecdt)
+dendrawvec.play(&dendrawv,vecdt)
+somarawvec.play_remove()
+dendrawvec.play_remove()
+t=0
+somarawvec.add(somaticv())
+dendrawvec.add(dendriticv())
+somarawvec.play(&somarawv,vecdt)
+dendrawvec.play(&dendrawv,vecdt)
+Vrestsoma=somaticv()
+Vrestdend=dendriticv()
+
+if (writeout>0) {
+	somasimvec.record(&dend1[7].v(0.5))
+	dendsimvec.record(&dend1[134].v(0.01))
+}
+
+/* send stim, delay, duration, tmax, dt */
+if (long>0) {
+	tstop=400
+	somastep_cc_new(-0.05, 51.3, 200.8, 400, 0.5)
+	graphItem.size(0,tstop,somaticv()-maxvsoma-0.2,dendriticv()+0.1)
+}
+if (short>0) {
+	tstop=100
+	somastep_cc_new(-2.0, 5.06, 1.008, 100, 0.1)
+	graphItem.size(0,tstop,-79,-76)
+}
+
+if (writeout>0) {
+	somaoutname = "ri22shi.sim"
+	dendoutname = "ri22dhi.sim"
+	write_data()
+}
+
+printf("Input resistance = %f Mohms\n",rn)
+printf("Max. voltage change at somatic electrode = %f mV\n",maxvsoma)
+printf("Max. voltage change at dendritic electrode = %f mV at %f ms\n",maxvdend,maxvdendt)
+printf("Attenuation = %f \n\n",maxvdend/maxvsoma)
+printf("LS Error = %f \n\n",lserr)
+wopen()
+
+print"DONE\n"
+

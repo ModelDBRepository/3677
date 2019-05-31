@@ -1,0 +1,160 @@
+/* access dend1[7]   -- somatic recording site at 0.5    */
+/* access dend1[134] -- dendritic recording site at 0.01 */
+
+graphicson = 1 	/* 1 graphics on, -1 graphics off */
+lserroron = 1  /* compare simulation to real data if > 0 */
+writeout = 0    /* equals 1 if output should be written to a file */
+makeplot = 0
+
+xopen("$(NEURONHOME):lib:hoc:noload.hoc")
+xopen("mystdrun.hoc")
+xopen("ri22geo5.hoc")
+xopen("ri22init.hoc")
+xopen("ri22func.hoc")
+nrnmainmenu()
+nrnmainmenu()
+tstop=100
+long=1
+short=1
+both=0
+syn=0
+nurm=0 /* 4 is preferred for nonuniform Rm */
+nuri=0
+initq=8
+init_params()
+Cm=1.0          /* specific membrane capacitance in uF/cm^2 */
+Rm=20805      /* specific membrane resistivity in ohm-cm^2 */
+Vrestsoma=Vrest
+Vrestdend=Vrest
+
+areascale=0.9
+
+read_expt_data()
+insert_pass(global_ra)		/* initialize passive membrane */
+
+if (nurm<1) {
+	init_pass(Cm)	/* initialize passive membrane */
+}
+if (nurm>2) {
+	init_nurm4(Cm)	/* initialize passive membrane */
+}
+if (qblock<1) {
+  if (initq>0) {
+    initq1()
+  }
+  if (initq>7) {
+    initq8()
+  }
+}		
+/* initnakhh()	*/	/* initialize active HH Na/K conductances */
+if (graphicson>0) {
+  newPlotV(-83,-78)
+}
+init()			/* initialize v and active states */
+
+if (qblock<1) {
+  print "stabilizing"
+  stabilize_cc(600,5)
+}
+
+proc vectors() {
+somarawvec.play(&somarawv,vecdt)
+dendrawvec.play(&dendrawv,vecdt)
+somarawvec.play_remove()
+dendrawvec.play_remove()
+somarawvec.add(Vrestsoma)
+dendrawvec.add(Vrestdend)
+/* somarawvec.add(somaticv()) */
+/* dendrawvec.add(dendriticv()) */
+somarawvec.play(&somarawv,vecdt)
+dendrawvec.play(&dendrawv,vecdt)
+ if (qblock<1) {
+  Vrestsoma=somaticv()
+  Vrestdend=dendriticv()
+ }
+graphItem.size(0,tstop,-82,-78)
+}
+
+wopen("data.out")
+fprint("ri22geo5\n")
+fprint("Surface area of dendrites scaled for spines (spinescale)\n")
+fprint("Surface area of all compartments scaled by an additional\n")
+fprint(" factor (areascale) to match input resistance\n")
+/* fprint("Surface area of soma (including dend[0-9]) scaled up by an\n") */
+/* fprint(" additional factor of 1.5 to check effects of error in soma SA\n")*/
+fprint("Ri     spinescale     areascale      long          long pulse    short vdend    short        short pulse\n")
+fprint("                                     atten.        ms error      peak time      atten.       vdend ms error\n")
+fprint("---    ---------      ---------      ---------     -----------   -----------    ---------    -------------\n")
+
+for (ra=175;ra<=175;ra=ra+2) {
+  global_ra=ra
+  print"******************************************************************\n"
+  printf("Ra=%d\n",ra)
+  long=1
+  short=0
+  read_expt_data()
+  vectors()
+  t=0
+  tstop=400
+  graphItem.size(0,tstop,-82,-78)
+  init()
+  if (nurm<1) {
+  	init_pass(Cm)	/* initialize passive membrane */
+  }
+  if (nurm>2) {
+  	init_nurm4(Cm)	/* initialize passive membrane */
+  }
+  somastep_cc(-0.05, 51.3, 201.4, 400, 5.0)
+  while (abs(rn-target)>0.0001*(target)) {
+    findsf(target)
+	if (nurm<1) {
+		init_pass(Cm)	/* initialize passive membrane */
+	}
+	if (nurm>2) {
+		init_nurm4(Cm)	/* initialize passive membrane */
+	}
+    /* stabilize_cc(600,5) */
+   /* Vrestsoma=dend1[7].v(0.5) */
+   /* Vrestdend=dend1[134].v(0.01) */
+    t=0
+    somastep_cc(-0.05, 51.3, 201.4, 400, 5.0)
+        /* send stim, delay, duration, tmax, dt */
+  }
+  t=0
+  mserrsoma=0
+  mserrdend=0
+  somastep_cc(-0.05, 51.3, 201.4, 400, 0.5)
+  ssatten=maxvdend/maxvsoma
+  longerr=mserr
+  long=0
+  short=1
+  read_expt_data()
+  vectors()
+  t=0
+  tstop=100
+  mserrsoma=0
+  mserrdend=0
+  graphItem.size(0,tstop,-82,-78)
+  init()
+  somastep_cc(-2.0, 5.06, 1.008, 100, 0.1)
+  shortatten=peakvdend/peakvsoma
+  shorterr=mserrdend
+  printf("spinescale = %f\n",spinescale)
+  printf("areascale = %f\n",areascale)
+  printf("Input resistance = %f Mohms\n",rn)
+  printf("Max. voltage change at somatic electrode = %f mV\n\n",maxvsoma)
+  printf("Max. voltage change at dendritic electrode = %f mV\n\n",maxvdend)
+  if (long>0) {
+	printf("Attenuation = %f \n\n",maxvdend/maxvsoma)
+  }
+  if (short>0) {
+	printf("Dend peak at %f ms \n",peakvdendt)
+	printf("Attenuation = %f \n\n",peakvdend/peakvsoma)
+  }
+  printf("MS Error = %f \n\n",mserr)
+  /* write Ra and maxv to output file */
+  fprint("%3d     %f      %f       %f      %f      %f      %f      %f\n",ra,spinescale,areascale,ssatten,longerr,peakvdendt,shortatten,shorterr)
+}
+print"******************************************************************\n"
+print"DONE\n"
+

@@ -1,0 +1,110 @@
+/* access dend1[21]   -- somatic recording site at 0.5    */
+/* access dend1[183] -- dendritic recording site at 0.01 */
+
+graphicson = 1    /* 1 graphics on, -1 graphics off */
+writeout = 0      /* equals 1 if output should be written to a file */
+makeplot = 0
+
+//xopen("$(NEURONHOME)/lib/hoc/noload.hoc")
+//xopen("mystdrun.hoc")
+xopen("replace.hoc")
+xopen("ri18geo.hoc")
+xopen("ri18init.hoc")
+xopen("ri18func.hoc")
+nrnmainmenu()
+nrncontrolmenu()
+
+tstop=400	/* total duration of simulation */
+long=1		/* greater than zero for long pulse */
+short=0		/* greater than zero for short pulse */
+both=0		/* greater than zero for short + long pulse */
+syn=0		/* greater than zero for synaptic simulation */
+ipass=2		/* =1 for uniform Rm, =2 for nonuniform Rm */
+initq=2		/* =1 for uniform Ih, =2 for nonuniform Ih */
+
+init_params()
+
+if (syn<1) {
+	read_expt_data()
+}
+
+insert_pass()			/* insert passive membrane */
+
+if (ipass<1) {
+	init_pass1(Cm)		/* initialize uniform passive membrane */
+}
+if (ipass>0) {
+	init_pass2(Cm)		/* initialize nonuniform passive membrane */
+}
+if (qblock<1) {
+  insertq()				/* insert q conductance */
+  if (initq<2) {
+    initq1(qten_qq/10)	/* initialize uniform q conductance */
+  }
+  if (initq>1) {
+    initq2(qten_qq)		/* initialize nonuniform q conductance */
+  }
+}		
+
+/* initnakhh()	*/		/* initialize active HH Na/K conductances */
+
+if (graphicson>0) {
+  newPlotV(-80,-60)
+}
+
+init()			/* initialize v and active states */
+
+if (syn<1) {
+	somarawvec.play(&somarawv,vecdt)
+	dendrawvec.play(&dendrawv,vecdt)
+	somarawvec.play_remove()
+	dendrawvec.play_remove()
+}
+somarawvec.add(somaticv())
+dendrawvec.add(dendriticv())
+if (syn<1) {
+	somarawvec.play(&somarawv,vecdt)
+	dendrawvec.play(&dendrawv,vecdt)
+}
+
+/* send stim, delay, duration, tmax, dt */
+if (long>0) {
+	tstop=400
+	somastep_cc(-0.05, 51.3, 201.4, tstop, 0.5)
+/*	dendstep_cc(-0.06, 51.3, 201.4, tstop, 0.2) */
+	graphItem.size(0,tstop,-68,-62)
+}
+if (short>0) {
+	tstop=100
+	somastep_cc(-2.0, 5.06, 1.008, 100, 0.1)
+	graphItem.size(0,tstop,-79,-76)
+}
+
+if (syn>0) {
+	tstop=100
+	print "simulating synaptics"
+	syn_cc2(0.5, 0.001, 0.2, 2, 0, 5, tstop, 0.1)
+	/* send location, gmax (mS), tau0, tau1, erev, delay, tmax, dt */
+	graphItem.size(0,tstop,somaticv()-0.5,dendriticv()+maxvdend+0.5)
+}
+
+if (writeout>0) {
+	somaoutname = "ri18syns6.sim"
+	dendoutname = "ri18synd6.sim"
+	write_data()
+}
+
+if (syn<1) {
+	rn=abs(ssvsoma/elecstim.amp)
+	printf("Input resistance = %f Mohms\n",rn)
+}
+printf("Max. voltage change at somatic electrode = %f mV\n\n",maxvsoma)
+printf("Max. voltage change at dendritic electrode = %f mV\n\n",maxvdend)
+printf("Attenuation = %f \n\n",maxvdend/maxvsoma)
+printf("MS error soma = %f \n\n",mserrsoma)
+printf("MS error dend = %f \n\n",mserrdend)
+printf("sag ratio = %f \n", ssvsoma/maxvsoma)
+wopen()
+
+print"DONE\n"
+

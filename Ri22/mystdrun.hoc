@@ -1,0 +1,555 @@
+
+/*
+?0 GUI NEURONMainPanel
+	Main menu for standard control, graphing, menu generation.
+
+	usage:
+		load_proc("nrnmainmenu")
+		nrnmainmenu()
+
+	see grapher.hoc for how to use the grapher submenu item
+
+	Serious users should peruse the init and run procedures.
+	The run chain that eventually calls fadvance is
+		run continuerun step advance fadvance
+	There is often reason to substitute a new step or advance
+	procedure to do intermediate calculations on the fly.
+	Sometimes it is useful to replace the init() procedure. If so
+	make sure you don't take away functionality which is already there.
+
+? RealTime
+	Running display of computation time. Resolution is 1 second.
+? celsius
+	Temperature
+? AxialResistivity
+	Assigns uniform value of Ra (ohm-cm) to all sections.
+	Ra used to be a global variable but is now a Section variable that
+	can be different in different sections. This sets Ra forall sections
+	equal to the value displayed in the fieldeditor.
+? RunControl
+	Pops up a panel for controlling simulation runs.
+?0 GUI NEURONMainPanel PointProcesses
+?1 Managers
+? PointManager
+	Starts a general purpose PointProcessManager for specifying a
+	location and defining what kind of point process should exist
+	there. Any number of these managers can exist simultaneously.
+	It is more general than the Electrode below in the sense that
+	you can choose any point process and has a much cleaner
+	implementation. See also: sections menu item
+? Electrode
+	Starts a general purpose voltage/current clamp (with some
+	voltage clamp families) that can be moved to any postion in any
+	section. Any number of these may be present simultaneously. When
+	one is dismissed from the screen, it is also removed from the neuron
+	and the point processes it manages are destroyed. See makeelectrode.
+?1 Viewers
+? PointProcesses
+	Menu of possible pointprocess's. Selecting an item pops up a panel
+	that contains a browser of the locations of a particular type of
+	point process, and, if global parameters exist, a button for popping
+	up a panel showing the global parameters for this type of point
+	process. Double clicking a location on the browser pops up a panel
+	showing the values for a particular point process instance.
+?0 GUI NEURONMainPanel DistributedMechanisms
+?1 Managers
+? Inserter
+	Starts an Inserter for the currently accessed section that
+	allows one to insert and uninsert density membrane mechanisms.
+	Currently this is most useful for single compartment simulations.
+? HomogeneousSpec
+	Starts a widget that is useful for specifing constant parameters for
+	membrane mechanisms in all sections of a simulation. See
+	makeshowmechanism.
+?1 Viewers
+? ShapeName
+	Allows one to figure out the correspondence between the physical
+	location of a section and a section name. Also allows one to
+	get a parameter menu for the selected section.
+? NameValues
+	Pops up a panel for displaying values associated with Sections.
+? MechanismsGlobals
+	Menu of possible membrane Mechanism's. Selecting an item pops up
+	a panel showing the global parameters for this type of Mechanism.
+
+?0 GUI NEURONMainPanel
+?1 NewGraph
+	For creating common kinds of graphs of functions of time.
+	These graphs are connected to the standard run procedure such
+	that at every step (see RunControl) the value of the functions
+	are plotted.
+? Voltageaxis
+	Plots values vs t.
+	Suitable for plotting voltage and concentrations, especially when
+	calculations are secondorder correct.
+	v(.5) of currently selected section is always plotted but can
+	be explictly removed with the Delete command in the Graph menu.
+? Currentaxis
+	Plots values vs t-.5dt
+	Suitable for plotting ionic currents (when calculations are secondorder
+	correct.
+? Stateaxis
+	Plots values vs t+.5dt
+	Suitable for plotting states such as m_hh, n_hh, etc. These
+	plots may be very accurate when secondorder = 2.
+? Shapeplot
+	Starts a PlotShape. A picture of a neuron suitable for specifying
+	time, space, and shape plots.
+? VectorMovie
+	Starts a Graph that is flushed when above plots are flushed.
+	This is suitable for selecting vectors from the PlotWhat menu
+	and seeing them change every time step.
+? PhasePlane
+	Starts a Graph for plotting f(t) vs g(t). When started a dialog
+	box pops up requesting the expression for g(t). As in the PlotWhat
+	browser for graphs you may enter any variable or function, but it
+	should change when the RunControl's InitRun button is pressed.
+? Grapher
+	Starts a widget for plotting any expression vs a specified
+	independent variable. Lines are not drawn on this graph in
+	response to a run. However it can be made to control a family
+	of runs.
+?1 Miscellaneous
+	Several useful widgets for managing simulations.
+? Family
+	Starts a widget for controlling a family of simulations.
+	One defines a variable and set of values for looping over an
+	action.
+? ParameterizedFunction
+	Starts a widget for plotting a parameterized function and
+	easily exploring its behaviour while varying the parameters.
+	Also can fit the function to data using either the simplex
+	or principal axis methods.
+*/
+
+/*
+?0 GUI RunControl
+A minimal control system for managing a single "Oscillope sweep" level
+simulation run. 
+
+? t
+Neuron time (ms). The field editor is updated regularly to display the
+value of the global variable t.
+? dt
+	Value of the fundamental integration time step used by fadvance().
+	When a value is entered into the field editor it is rounded down
+	so that an integral multiple of fadvance's make up a SingleStep
+? InitRun
+	Initialize states, set t=0, and run the simulation until t == Tstop
+	Plotting to graphs constructed from the NEURONMainPanel occurs at
+	a rate given by the variable set by the Plotsms valueeditor.
+	It is often convenient to substitute problem specific procedures
+	for the default procedures init() and advance().
+	The run call chain is
+		run continuerun step advance fadvance
+	The default advance is merely
+		proc advance() {
+			fadvance()
+		}
+	and is a good candidate for substition by a problem specific
+	user routine.
+	Warning: multiple presses of the this button without waiting
+	for the previous simulation to finish (or pressing Stop) will
+	execute the run() procedure recursively (probably not what is
+	desired) Press the Stop button to unwrap these recursions.
+? Init
+	The default initialize procedure initializes states using
+	finitialize(vinit) where vinit is displayed in the valueeditor.
+	The init call chain is
+		stdinit init (finitialize fcurrent)
+	When more complicated initialization is required substitute a
+	new procedure for the default init procedure:
+		proc init() {
+			finitialize(v_init)
+			fcurrent()
+		}
+? Stop
+	Stops the simulation at the end of a step. 
+? Continuetil
+	Continues integrating until t == value displayed in valueeditor.
+	Plots occur each step.
+? Continuefor
+	Continues integrating for amount of time displayed in valueeditor.
+	Plots occur each step.
+? SingleStep
+	Integrates one step and plots.
+	A step is 1/(Plots/ms) milliseconds and consists of 1/dt/(Plots/ms)
+	calls to fadvance()
+? Tstop
+	Stop time for InitRun
+? Plotsms
+	Number of integration steps per millisecond at which plots occur.
+	Notice that reducing dt does not by itself increase the number
+	of points plotted. If the the step is not an integral multiple of
+	dt then dt is rounded down to the neares integral multiple.
+
+?0 User HocCode Stdrun
+*/
+help ?0
+
+strdef somav, dendv, basalv, tuftv, act, inact
+objref somarawfile, dendrawfile, outfile
+objref somarawvec, dendrawvec, somasimvec, dendsimvec
+somarawfile = new File()
+dendrawfile = new File()
+outfile = new File()
+somarawvec = new Vector()
+dendrawvec = new Vector()
+somasimvec = new Vector(1024)
+dendsimvec = new Vector(1024)
+somarawv = 0
+dendrawv = 0
+
+realtime=0
+tstop = 5
+stoprun = 1
+steps_per_ms = 1/.025
+nstep_steprun=1
+runStopAt = tstop
+runStopIn = 1
+global_ra = 150
+celsius=35
+strdef temp_string_, temp_string2_
+temp_string_ = "t"
+
+/* stylized control processes for nrncontrolmenu() */
+load_template("PointBrowser")
+
+proc nrnmainmenu() {
+    xpanel("NEURON Main Panel")
+	xpvalue("Real Time", &realtime)
+	xpvalue("celsius", &celsius, 1)
+	xvalue("Axial Resistivity", "global_ra", 1, "set_ra()", 1, 1)
+	xbutton("RunControl", "nrncontrolmenu()")
+	graphmenu()
+	pointprocessesmenu()
+	distmechmenu()
+	miscellaneousmenu()
+    xpanel()
+}
+
+
+//load_template("Grapher")
+
+proc graphmenu() {
+    xmenu("New Graph")
+	xbutton("Voltage axis", "newPlotV()")
+	xbutton("Current axis", "newPlotI()")
+	xbutton("State axis", "newPlotS()")
+	xbutton("Shape plot", "newshapeplot()")
+	xbutton("Vector movie", "newvectorplot()")
+	xbutton("Phase Plane", "newphaseplane()")
+	xbutton("Grapher", "load_proc(\"makegrapher\") makegrapher()")
+    xmenu()
+}
+
+proc pointprocessesmenu() {
+    xmenu("Point Processes")
+    xmenu("Managers")
+	xbutton("Point Manager", "load_template(\"PointProcessManager\") makeppm()")
+	xbutton("Electrode", "load_proc(\"makeelectrode\") makeelectrode()")
+    xmenu()
+    xmenu("Viewers")
+	pointmenu()
+    xmenu()
+    xmenu()
+}
+proc distmechmenu() {
+  xmenu("Distributed Mechanisms")
+    xmenu("Managers")
+	xbutton("Inserter", "load_template(\"Inserter\") makeinserter()")
+	xbutton("Homogeneous Spec", "load_proc(\"makeshowmechanism\") makeshowmechanism()")
+    xmenu()
+    xmenu("Viewers")
+	xbutton("Shape Name", "load_template(\"MenuExplore\") makeMenuExplore()")
+	xbutton("Name Values", "nrnallsectionmenu()")
+	nrnglobalmechmenu()
+    xmenu()
+  xmenu()
+}
+proc miscellaneousmenu() {
+    xmenu("Miscellaneous")
+	xbutton("Family", "load_template(\"Family\") makeFamily()")
+	xbutton("Parameterized Function", "load_template(\"FunctionFitter\") makefitter()")
+	xbutton("Run Fitter", "load_template(\"RunFitter\") makerunfitter()")
+    xmenu()
+}
+/*
+load_template("String")
+objectvar miscellaneous, tempobj
+miscellaneous = new List()
+proc miscellaneousmenu() {local i
+    xmenu("miscellaneous")
+	for i=0, miscellaneous.count()-1 {
+		xbutton(miscellaneous.object(i).s)
+		i=i+1
+		xbutton(miscellaneous.object(i).s)
+	}
+    xmenu()
+}
+proc add_nrnmainmenu() {
+	tempobj = new String($s1)
+	miscellaneous.append(tempobj)
+	tempobj = new String($s2)
+	miscellaneous.append(tempobj)
+}
+*/
+v_init = -65
+
+proc nrncontrolmenu() {
+    xpanel("RunControl")
+	xpvalue("Init", &v_init, 1, "stdinit()", 1)
+	xbutton("Init & Run", "run()")
+	xbutton("Stop", "stoprun=1")
+xvalue("Continue til", "runStopAt", 1, "{continuerun(runStopAt) stoprun=1}", 1, 1)
+xvalue("Continue for", "runStopIn", 1, "{continuerun(t + runStopIn) stoprun=1}", 1,1)
+	xbutton("Single Step", "steprun()")
+	xvalue("t", "t", 2)
+	xvalue("Tstop", "tstop", 1, "tstop_changed()", 0, 1)
+	xpvalue("dt", &dt, 1, "setdt()")
+	xvalue("Points plotted/ms", "steps_per_ms", 1, "setdt()", 0, 1)
+    xpanel()
+}
+
+func set_v_init() {local old
+	old = v_init
+	if (numarg(1)) {
+		v_init = $1
+	}
+	return old
+}
+
+proc stdinit() {
+	realtime=0 startsw()
+ 	init()
+	initPlot()
+}
+
+/* this function is replaced by ri18init.hoc
+proc init() {
+	finitialize(v_init)
+	fcurrent()
+}
+*/
+
+n_graph_lists = 4
+objectvar graphList[n_graph_lists], graphItem, flush_list
+for i=0,n_graph_lists-1 graphList[i] = new List(1)
+flush_list = new List(1)
+
+proc set_ra() {/* this alleviates the backward compatibility problems */
+	forall Ra = global_ra
+}
+
+proc run() {
+	stdinit()
+	setdt()
+	continuerun(tstop)
+}
+
+func stoppedrun() { return stoprun }
+
+proc setdt() {local Dt, dtnew
+	Dt = 1/steps_per_ms
+	nstep_steprun = int(Dt/dt)
+	if (nstep_steprun == 0) {
+		nstep_steprun = 1
+	}
+	dtnew = Dt/nstep_steprun
+	if (abs(dt*nstep_steprun*steps_per_ms - 1) > 1e-6) {
+		print "Changed dt"
+		dt = dtnew
+	}
+}
+
+eventslow=1
+eventcount=0
+
+proc continuerun() {local rt
+	eventcount=0
+	eventslow=1
+	stoprun = 0
+	while(t < $1 && stoprun == 0) {
+		step()
+		sum_error(somaticv(),dendriticv())
+		findmax()
+		findss()
+	/*	write_data() */
+		rt = stopsw()
+		if (rt > realtime) {
+			realtime = rt
+			fastflushPlot()
+			doNotify()
+			if (realtime == 2 && eventcount > 50) {
+				eventslow = int(eventcount/50) + 1
+			}
+			eventcount = 0
+		}else{
+			eventcount = eventcount + 1
+			if ((eventcount%eventslow) == 0) {
+				doEvents()
+			}
+		}
+	}
+	flushPlot()
+	avg_error()
+}
+
+proc steprun() {
+	step()
+	flushPlot()
+}
+
+proc step() {local i
+    for i=1,nstep_steprun {
+	advance()
+    }
+    Plot()
+}
+
+proc advance() {
+	fadvance()
+}
+
+proc initPlot(){local i, j, cnt
+	for j=0,n_graph_lists-1 {
+		cnt = graphList[j].count() - 1
+		for (i=cnt; i >= 0; i=i-1) if (graphList[j].object(i).view_count() == 0){
+			graphList[j].remove(i)
+			cnt = cnt - 1
+		}
+		for i=0,cnt graphList[j].object(i).begin()
+	}
+	cnt = flush_list.count() -1
+	for (i=cnt; i >= 0; i=i-1) if (flush_list.object(i).view_count() == 0){
+		flush_list.remove(i)
+	}
+	Plot()
+	flushPlot()
+}
+
+proc tstop_changed() {local i, j, cnt
+	for j=0,2 {
+		cnt = graphList[j].count() - 1
+		for i=0,cnt {
+			graphItem = graphList[j].object(i)
+			graphItem.size(0, tstop, graphItem.size(3), \
+				graphItem.size(4))
+		}
+	}
+}
+
+proc Plot() {local i, j, cnt, dt2
+	dt2 = dt/2
+	cnt = graphList[0].count() - 1
+	for i=0,cnt graphList[0].object(i).plot(t)
+	cnt = graphList[1].count() - 1
+	for i=0,cnt graphList[1].object(i).plot(t - dt/2)
+	cnt = graphList[2].count() - 1
+	for i=0,cnt graphList[2].object(i).plot(t + dt/2)
+	cnt = graphList[3].count() - 1
+	for i=0,cnt graphList[3].object(i).plot(t)
+	cnt = flush_list.count() - 1
+	if (cnt >= 0) {
+		for i=0,cnt flush_list.object(i).begin()
+		for i=0,cnt flush_list.object(i).flush()
+		doEvents()
+	}
+}
+/* The following was added by Nelson to handle plotting activation
+    parameters, which are a function of v rather than t */
+proc PlotAct() {local i, j, cnt
+	cnt = graphList[0].count() - 1
+	for i=0,cnt graphList[0].object(i).plot(v)
+	cnt = graphList[1].count() - 1
+	for i=0,cnt graphList[1].object(i).plot(v)
+	cnt = graphList[2].count() - 1
+	for i=0,cnt graphList[2].object(i).plot(v)
+	cnt = graphList[3].count() - 1
+	for i=0,cnt graphList[3].object(i).plot(v)
+	cnt = flush_list.count() - 1
+	if (cnt >= 0) {
+		for i=0,cnt flush_list.object(i).begin()
+		for i=0,cnt flush_list.object(i).flush()
+		doEvents()
+	}
+}
+
+proc flushPlot() {local i, j, cnt
+	for j=0,n_graph_lists-1 {
+		cnt = graphList[j].count() - 1
+		for i=0,cnt graphList[j].object(i).flush()
+	}
+	cnt = flush_list.count() - 1
+	if (cnt >= 0) {
+		for i=0,cnt flush_list.object(i).flush()
+	}
+	doEvents()
+}
+
+proc fastflushPlot() {local i, j, cnt
+	for j=0,n_graph_lists-1 {
+		cnt = graphList[j].count() - 1
+		for i=0,cnt graphList[j].object(i).fastflush()
+	}
+	doEvents()
+}
+
+proc newPlotV() {
+	newPlot(0,tstop,$1,$2)
+	graphItem.save_name("graphList[0].")
+	graphList[0].append(graphItem)
+	graphItem.addexpr(somav)
+	graphItem.addexpr(dendv,2,1)
+/*	graphItem.addexpr(basalv,3,1) */
+/*	graphItem.addexpr(tuftv,4,1) */
+	graphItem.addexpr("somarawv",3,1)
+	graphItem.addexpr("dendrawv",4,1)
+}
+proc newPlotI() {
+	newPlot(0,tstop,-1,1)
+	graphItem.save_name("graphList[1].")
+	graphList[1].append(graphItem)
+}
+proc newPlotS() {
+	newPlot(0,tstop,0,1)
+	graphItem.save_name("graphList[2].")
+	graphList[2].append(graphItem)
+}
+proc newPlot() {local w, h
+	graphItem = new Graph()
+	graphItem.size($1,$2,$3,$4)
+	graphItem.xaxis()	// view axis for x and y
+/*
+	w = $2 - $1
+	h = $4 - $3
+	graphItem.size($1- w/10, $2+w/10, $3-h/10, $4+h/10)
+*/
+}
+proc addplot() {
+	$o1.size(0,tstop,-1,1)
+	graphList[$2].append($o1)
+}
+
+proc newshapeplot() {
+	graphItem = new PlotShape()
+	flush_list.append(graphItem)
+	graphItem.save_name("flush_list.")
+}
+proc newvectorplot() {
+	graphItem = new Graph()
+	flush_list.append(graphItem)
+	graphItem.save_name("flush_list.")
+}
+proc newphaseplane() {
+	graphItem = new Graph()
+	string_dialog("x axis expression", temp_string_)
+	graphItem.xexpr(temp_string_)
+	graphItem.label(20, 150, "x-axis:")
+	graphItem.label(temp_string_)
+	
+	graphItem.save_name("graphList[3].")
+	graphList[3].append(graphItem)
+}
+
+

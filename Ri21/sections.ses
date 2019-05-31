@@ -1,0 +1,12 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[6]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+
+objectvar scene_vector_[1]
+
+load_template("MenuExplore")
+objectvar menu_explore
+menu_explore = new MenuExplore()
+
+

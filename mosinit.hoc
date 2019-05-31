@@ -1,0 +1,9 @@
+load_file("nrngui.hoc")
+
+chdir("Ri18")
+load_file("ri18run.hoc")
+//chdir("Ri21")
+//load_file("ri21run.hoc")
+//chdir("Ri22")
+//load_file("ri22run.hoc")
+

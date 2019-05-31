@@ -1,0 +1,100 @@
+/* access dend1[13]  -- somatic recording site at 0.5    */
+/* access dend1[232] -- dendritic recording site at 0.99 */
+
+graphicson = 0    /* 1 graphics on, -1 graphics off */
+lserroron = -1    /* compare simulation to real data if > 0 */
+writeout = 0      /* equals 1 if output should be written to a file */
+
+xopen("$(NEURONHOME)/lib/hoc/noload.hoc")
+xopen("mystdrun.hoc")
+xopen("ri21geo2.hoc")
+xopen("ri21init.hoc")
+xopen("ri21func.hoc")
+/* nrnmainmenu() */
+tstop=100
+long=0
+short=1
+both=0
+syn=0
+nurm=0
+nuri=0
+initq=10
+init_params()
+areascale=1
+
+insert_pass()
+
+if (nurm<1) {
+	init_pass(global_ra/100)		/* initialize passive membrane */
+}
+if (nurm==3) {
+	init_nurm3(Cm)		/* initialize passive membrane */
+}
+if (nurm==4) {
+	init_nurm4(Cm)		/* initialize passive membrane */
+}
+
+if (qblock<1) {
+  if (initq==1) {
+    initq1()
+  }
+  if (initq==8) {
+    initq8()
+  }
+  if (initq==10) {
+    initq10(qten_qq/10)
+  }
+}		
+
+/* initnakhh()	*/	/* initialize active HH Na/K conductances */
+
+if (graphicson>0) {
+  newPlotV(-80,-60)
+}
+init()			/* initialize v and active states */
+
+Vrestsoma=Vleak
+Vrestdend=Vleak
+
+/* send stim, delay, duration, tmax, dt */
+if (long>0) {
+	tstop=400
+	somastep_cc2(-0.05, 51.2, 201.2, 400, 0.5)
+	xopen("ri21fitlng1.ses")
+	/* xopen("ri21fitlng3.ses") */
+	RunFitter[0].g.size(0,400,-79,-75)
+	RunFitter[0].redraw()
+	RunFitter[1].g.size(0,400,-79,-75)
+	RunFitter[1].redraw()
+}
+if (short>0) {
+	tstop=100
+	somastep_cc2(-2.0, 5.06, 1.008, 100, 0.126)
+	xopen("ri21fitsh1.ses")
+	/* xopen("ri21fitsh3.ses") */
+	RunFitter[0].g.size(0,100,-80,-75)
+	RunFitter[0].redraw()
+	RunFitter[1].g.size(0,100,-80,-75)
+	RunFitter[1].redraw()
+}
+if (syn>0) {
+	tstop=50
+	syn_cc(0.5, 5, 0.3, 3, 0, 5, tstop, 0.1)
+	/* send location, gmax (mS), tau0, tau1, erev, delay, tmax, dt */
+}
+
+if (both>0) {
+	tstop=504
+	doublestep_cc(-0.05, 50.3, 200.8, -2, 399.57, 1.008, tstop, dt)
+	if (nurm<1) {
+		xopen("ri21fit.ses")
+	}
+	if (nurm>2) {
+		xopen("ri21fit4.ses")
+	}
+	RunFitter[0].g.size(0,504,-80,-75)
+	RunFitter[0].redraw()
+	RunFitter[1].g.size(0,504,-80,-75)
+	RunFitter[1].redraw()
+}
+
